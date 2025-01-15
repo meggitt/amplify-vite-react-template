@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 
 const GRID_SIZE = 20;
 const CELL_SIZE = 25;
@@ -214,6 +214,34 @@ const SnakeGame: React.FC = () => {
     return () => clearInterval(timer);
   }, [mathQuestion, timerActive, reviveAttempts]);
 
+  const handleAnswerSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    setTimerActive(false);
+
+    if (parseInt(userAnswer) === mathQuestion?.answer) {
+      const revivalPos = calculateRevivalPosition(deathPosition!, deathDirection!);
+      const revivedSnake = reconstructSnake(revivalPos, deathSnake!);
+
+      setGameOver(false);
+      setMathQuestion(null);
+      setUserAnswer('');
+      setTimeLeft(QUESTION_TIME_LIMIT);
+      setRevivalMethod(null);
+      setSnake(revivedSnake);
+      setDirection(deathDirection!);
+    } else {
+      setReviveAttempts(prev => prev - 1);
+      if (reviveAttempts <= 1) {
+        resetGame();
+      } else {
+        setMathQuestion(generateMathQuestion());
+        setUserAnswer('');
+        setTimeLeft(QUESTION_TIME_LIMIT);
+        setTimerActive(true);
+      }
+    }
+  };
+
   const resetGame = () => {
     setSnake([
       { x: 5, y: 5 },
@@ -236,12 +264,45 @@ const SnakeGame: React.FC = () => {
     setDeathSnake(null);
   };
 
+  const reconstructSnake = (revivalPos: Position, originalSnake: Position[]): Position[] => {
+    const newSnake: Position[] = [];
+    const length = originalSnake.length;
+
+    newSnake.push({ x: revivalPos.x, y: revivalPos.y });
+
+    for (let i = 1; i < length; i++) {
+      const prevSegment = newSnake[i - 1];
+      let newSegment;
+
+      switch (deathDirection) {
+        case 'RIGHT':
+          newSegment = { x: prevSegment.x - 1, y: prevSegment.y };
+          break;
+        case 'LEFT':
+          newSegment = { x: prevSegment.x + 1, y: prevSegment.y };
+          break;
+        case 'DOWN':
+          newSegment = { x: prevSegment.x, y: prevSegment.y - 1 };
+          break;
+        case 'UP':
+          newSegment = { x: prevSegment.x, y: prevSegment.y + 1 };
+          break;
+        default:
+          newSegment = { x: prevSegment.x - 1, y: prevSegment.y };
+      }
+      newSnake.push(newSegment);
+    }
+
+    return newSnake;
+  };
+
   const styles = {
     container: {
       display: 'flex',
       flexDirection: 'column' as const,
       alignItems: 'center',
       minHeight: 'fit-content',
+      overflowY: 'hidden' as const,
     },
     gameBoard: {
       display: 'grid',
@@ -265,11 +326,89 @@ const SnakeGame: React.FC = () => {
       background: 'linear-gradient(45deg, #ff416c 0%, #ff4b2b 100%)',
       borderRadius: '50%',
     },
+    revivalChoice: {
+      position: 'absolute' as const,
+      top: '50%',
+      left: '50%',
+      transform: 'translate(-50%, -50%)',
+      background: 'rgba(0, 0, 0, 0.9)',
+      padding: '30px',
+      borderRadius: '15px',
+      color: 'white',
+      textAlign: 'center' as const,
+      boxShadow: '0 0 20px rgba(0, 0, 0, 0.5)',
+    },
+    mathQuestion: {
+      position: 'absolute' as const,
+      top: '50%',
+      left: '50%',
+      transform: 'translate(-50%, -50%)',
+      background: 'rgba(0, 0, 0, 0.9)',
+      padding: '30px',
+      borderRadius: '15px',
+      color: 'white',
+      textAlign: 'center' as const,
+      boxShadow: '0 0 20px rgba(0, 0, 0, 0.5)',
+      minWidth: '300px',
+    },
+    input: {
+      margin: '10px 0',
+      padding: '8px',
+      fontSize: '18px',
+      borderRadius: '5px',
+      border: '2px solid #0575e6',
+      width: '100px',
+      textAlign: 'center' as const,
+    },
+    button: {
+      padding: '10px 20px',
+      fontSize: '16px',
+      background: 'linear-gradient(45deg, #00f260 0%, #0575e6 100%)',
+      border: 'none',
+      borderRadius: '5px',
+      color: 'white',
+      cursor: 'pointer',
+      transition: 'transform 0.1s ease',
+      marginTop: '10px',
+    },
   };
 
   return (
     <div style={styles.container}>
       <div>Score: {score}</div>
+      {gameOver && !revivalMethod && (
+        <div style={styles.revivalChoice}>
+          <h3>Choose Your Revival Method</h3>
+          <button
+            style={styles.button}
+            onClick={() => {
+              setRevivalMethod('math');
+              setMathQuestion(generateMathQuestion());
+              setTimerActive(true);
+            }}
+          >
+            Solve Math Question
+          </button>
+          <button style={styles.button} onClick={resetGame}>End Game</button>
+        </div>
+      )}
+      {revivalMethod === 'math' && mathQuestion && (
+        <div style={styles.mathQuestion}>
+          <h3>Solve to Continue!</h3>
+          <p>{mathQuestion.question}</p>
+          <form onSubmit={handleAnswerSubmit}>
+            <input
+              type="number"
+              value={userAnswer}
+              onChange={e => setUserAnswer(e.target.value)}
+              style={styles.input}
+            />
+            <button type="submit" style={styles.button}>Submit</button>
+          </form>
+          <p>Time Remaining: {timeLeft}s</p>
+          <p>Remaining Attempts: {reviveAttempts}</p>
+        </div>
+      )}
       <div style={styles.gameBoard}>
         {Array.from({ length: GRID_SIZE * GRID_SIZE }).map((_, index) => {
           const x = index % GRID_SIZE;
